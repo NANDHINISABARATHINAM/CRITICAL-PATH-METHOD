@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Critical Path Method(CPM)</title>
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/vis-network@9.0.3/dist/vis-network.min.js"></script>
+    <style>
+        table {
+            border-collapse: collapse;
+            border: 2px solid black; /* Set table border to bold black */
+        }
+    
+        th, td {
+            border: 2px solid black; /* Set cell borders to bold black */
+            padding: 8px;
+        }
+    
+        th {
+            background-color:white;
+            font-weight: bold;
+        }
+    </style>
+    
+    <script>
+        function calculateSchedule() {
+            const tasks = {};
+            let number = -1;
+
+            const numTasks = parseInt(document.getElementById("numTasks").value);
+
+            for (let i = 0; i < numTasks; i++) {
+                number++;
+                const task_id = number.toString();
+                const task_name = document.getElementById(`task_name_${task_id}`).value;
+                const task_duration = parseInt(document.getElementById(`task_duration_${task_id}`).value);
+                const task_dependencies = document.getElementById(`task_dependencies_${task_id}`).value.split(',');
+                if (task_dependencies.length === 1 && task_dependencies[0] === "") {
+                    task_dependencies[0] = '-1';
+                }
+
+                tasks[`task${task_id}`] = {
+                    id: task_id,
+                    name: task_name,
+                    duration: task_duration,
+                    dependencies: task_dependencies,
+                    ES: 0,
+                    EF: 0,
+                    LS: 0,
+                    LF: 0,
+                    float: 0,
+                    isCritical: false,
+                };
+            }
+
+            // Forward Pass
+            for (const taskFW in tasks) {
+                if (tasks[taskFW].dependencies.includes('-1')) {
+                    tasks[taskFW].ES = 1;
+                    tasks[taskFW].EF = tasks[taskFW].duration;
+                } else {
+                    for (const k in tasks) {
+                        for (const dependency of tasks[k].dependencies) {
+                            if (dependency !== '-1' && tasks[k].dependencies.length === 1) {
+                                tasks[k].ES = tasks[`task${dependency}`].EF + 1;
+                                tasks[k].EF = tasks[k].ES + tasks[k].duration - 1;
+                            } else if (dependency !== '-1') {
+                                if (tasks[`task${dependency}`].EF > tasks[k].ES) {
+                                    tasks[k].ES = tasks[`task${dependency}`].EF + 1;
+                                    tasks[k].EF = tasks[k].ES + tasks[k].duration - 1;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            const aList = Object.keys(tasks);
+            const bList = aList.slice().reverse();
+
+            // Backward Pass
+            for (const taskBW of bList) {
+                if (bList.indexOf(taskBW) === 0) {
+                    tasks[taskBW].LF = tasks[taskBW].EF;
+                    tasks[taskBW].LS = tasks[taskBW].ES;
+                }
+
+                for (const dependency of tasks[taskBW].dependencies) {
+                    if (dependency !== '-1') {
+                        if (tasks[`task${dependency}`].LF === 0) {
+                            tasks[`task${dependency}`].LF = tasks[taskBW].LS - 1;
+                            tasks[`task${dependency}`].LS = tasks[`task${dependency}`].LF - tasks[`task${dependency}`].duration + 1;
+                            tasks[`task${dependency}`].float = tasks[`task${dependency}`].LF - tasks[`task${dependency}`].EF;
+                        }
+                        if (tasks[`task${dependency}`].LF > tasks[taskBW].LS) {
+                            tasks[`task${dependency}`].LF = tasks[taskBW].LS - 1;
+                            tasks[`task${dependency}`].LS = tasks[`task${dependency}`].LF - tasks[`task${dependency}`].duration + 1;
+                            tasks[`task${dependency}`].float = tasks[`task${dependency}`].LF - tasks[`task${dependency}`].EF;
+                        }
+                    }
+                }
+            }
+
+            // Printing
+            const resultContainer = document.getElementById("resultContainer");
+resultContainer.innerHTML = `
+    <table>
+        <tr>
+            <th>Task ID</th>
+            <th>Task Name</th>
+            <th>Duration</th>
+            <th>ES</th>
+            <th>EF</th>
+            <th>LS</th>
+            <th>LF</th>
+            <th>Float</th>
+            <th>Is Critical</th>
+        </tr>
+    </table>
+`;
+
+const table = resultContainer.querySelector("table");
+table.style.border = "2px solid black"; // Set table border to bold black
+
+for (const task in tasks) {
+    if (tasks[task].float === 0) {
+        tasks[task].isCritical = true;
+    }
+
+    const row = table.insertRow();
+    const cellValues = [
+        tasks[task].id,
+        tasks[task].name,
+        tasks[task].duration,
+        tasks[task].ES,
+        tasks[task].EF,
+        tasks[task].LS,
+        tasks[task].LF,
+        tasks[task].float,
+        tasks[task].isCritical ? "Yes" : "No",
+    ];
+
+    for (const value of cellValues) {
+        const cell = row.insertCell();
+        cell.textContent = value;
+    }
+}
+
+// Apply styles to table cells (td)
+const tableCells = document.querySelectorAll("table td");
+for (const cell of tableCells) {
+    cell.style.border = "2px solid black";  // Set the inner border
+    cell.style.padding = "8px";  // Add padding for better spacing
+}
+
+            // After your existing code in calculateSchedule function
+drawNetworkGraph(tasks);
+
+        }
+        function drawNetworkGraph(tasks) {
+            const container = document.getElementById("networkContainer");
+    container.style.width = "1000px"; // Set the desired width
+    container.style.height = "1000px"; // Set the desired height
+    console.log();
+    console.log();
+    console.log();
+    console.log();
+    console.log();
+    console.log();
+    console.log();
+    console.log();
+    const nodes = [];
+    const edges = [];
+    const criticalPathNodes = []; // To store nodes in critical path
+
+    // Create nodes and edges from tasks
+    for (const task in tasks) {
+        const taskData = tasks[task];
+        nodes.push({ id: task, label: taskData.name, color: taskData.isCritical ? "green" : undefined });
+
+        if (taskData.isCritical) {
+            criticalPathNodes.push(task);
+        }
+
+        for (const dependency of taskData.dependencies) {
+            if (dependency !== '-1') {
+                edges.push({ from: `task${dependency}`, to: task, color: taskData.isCritical ? "green" : undefined });
+            }
+        }
+    }
+
+    const data = {
+        nodes: nodes,
+        edges: edges
+    };
+
+    const options = {
+        layout: {
+            hierarchical: {
+                direction: "LR", // Left to Right
+                sortMethod: "directed"
+            }
+        },
+        edges: {
+            smooth: true,
+            color: {
+                color: "#000000",
+                highlight: "#FF0000"
+            }
+        },
+        nodes: {
+            color: {
+                border: "#2B7CE9",
+                background: "#97C2FC",
+                highlight: {
+                    border: "#2B7CE9",
+                    background: "#D2E5FF"
+                }
+            }
+        }
+    };
+
+    const network = new vis.Network(container, data, options);
+
+    // Highlight the critical path nodes and edges
+    for (const criticalNode of criticalPathNodes) {
+        network.selectNodes([criticalNode]);
+    }
+}
+
+
+    </script>
+</head>
+<body bgcolor="lightblue"> 
+
+    <h1 align="center">CRITICAL PATH METHOD</h1>
+    <hr>
+    <img src="642e9ccd10da3_characteristics_of_cpm.png" alt="cpm" align="right"/>
+    <form>
+        <label for="numTasks">Enter the number of tasks:</label>
+        <input type="number" id="numTasks" name="numTasks" min="1"><br><br>
+
+        <div id="tasksContainer">
+            <!-- JavaScript will dynamically generate task input fields here -->
+        </div>
+
+        <button type="button" onclick="calculateSchedule()">Calculate Critical Path</button>
+    </form>
+
+    <div id="resultContainer">
+        <!-- Results will be displayed here -->
+    </div>
+    
+    <script>
+        // JavaScript code for dynamically generating task input fields
+        document.getElementById("numTasks").addEventListener("input", function() {
+            const numTasks = parseInt(document.getElementById("numTasks").value);
+            const tasksContainer = document.getElementById("tasksContainer");
+            tasksContainer.innerHTML = "";
+
+            for (let i = 0; i < numTasks; i++) {
+                const task_id = i.toString();
+                const taskDiv = document.createElement("div");
+                taskDiv.innerHTML = `
+                    <label for="task_name_${task_id}">Task ${task_id} Name:</label>
+                    <input type="text" id="task_name_${task_id}" name="task_name_${task_id}"><br>
+                    
+                    <label for="task_duration_${task_id}">Task ${task_id} Duration:</label>
+                    <input type="number" id="task_duration_${task_id}" name="task_duration_${task_id}" min="1"><br>
+                    
+                    <label for="task_dependencies_${task_id}">Task ${task_id} Dependencies (comma-separated):</label>
+                    <input type="text" id="task_dependencies_${task_id}" name="task_dependencies_${task_id}"><br><br>
+                `;
+                tasksContainer.appendChild(taskDiv);
+            }
+        });
+    </script>
+    <div id="networkContainer"></div>
+
+</body>
+</html>
